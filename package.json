@@ -1,0 +1,34 @@
+{
+  "name": "opencode-github-pr-status",
+  "version": "0.1.0",
+  "description": "GitHub pull request status in the OpenCode terminal",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tupton/opencode-github-pr-status.git"
+  },
+  "exports": {
+    "./tui": "./src/tui.tsx"
+  },
+  "files": ["src", "README.md", "LICENSE"],
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@opencode/plugin": "2.0.18"
+  },
+  "peerDependencies": {
+    "@opentui/core": ">=0.5.12 <0.6",
+    "@opentui/solid": ">=0.5.12 <0.6",
+    "solid-js": ">=1.9.12 <2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  },
+  "engines": {
+    "node": ">=22.14.0"
+  }
+}
