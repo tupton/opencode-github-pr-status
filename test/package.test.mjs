@@ -17,7 +17,13 @@ test("exports only a terminal plugin", () => {
   assert.equal(entrypoints.server, undefined);
   assert.match(entrypoints.tui ?? "", /src\/tui\.tsx$/);
 
-  const result = spawnSync("bun", ["-e", 'await import("opencode-github-pr-status/tui")'], {
+  const result = spawnSync("bun", ["-e", `
+    import { Host } from "@opencode/plugin/host";
+    const { server, tui } = Host.resolve({ directory: process.cwd(), name: "opencode-github-pr-status" });
+    if (server || !tui) throw new Error("Not a CLI-only plugin");
+    const module = await Host.load(tui);
+    if (module.default?.id !== "github-pr-status") throw new Error("Unexpected plugin ID");
+  `], {
     cwd: directory,
     encoding: "utf8",
   });
