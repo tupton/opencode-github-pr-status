@@ -1,6 +1,7 @@
 {
   "name": "opencode-github-pr-status",
   "version": "0.1.0",
+  "packageManager": "pnpm@10.34.5",
   "description": "GitHub pull request status in the OpenCode terminal",
   "license": "MIT",
   "type": "module",
@@ -26,6 +27,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "solid-js": "1.9.12",
     "typescript": "^5.9.0"
   },
   "engines": {
