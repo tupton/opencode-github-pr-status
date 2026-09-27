@@ -20,6 +20,6 @@ The command palette also has **GitHub PR: Open** and **GitHub PR: Refresh**. The
 
 ## Develop
 
-Install Node.js, npm, and Bun. Run `npm ci`, `npm test`, and `npm run typecheck`. The package test imports the TUI entrypoint and checks which files npm would publish. You do not need GitHub credentials to run the tests.
+Install Node.js 22.14.0 or later, pnpm 10.34.5, and Bun. Run `pnpm install --frozen-lockfile`, `pnpm test`, and `pnpm typecheck`. The package test imports the TUI entrypoint and uses `npm pack --dry-run` to check which files npm would publish. You do not need GitHub credentials to run the tests.
 
 See [RELEASING.md](RELEASING.md) to publish a version.
