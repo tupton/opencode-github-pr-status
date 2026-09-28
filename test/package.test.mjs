@@ -30,7 +30,7 @@ test("exports only a terminal plugin", () => {
   assert.equal(result.status, 0, result.stderr || result.error?.message);
 });
 
-test("ships the plugin and parser in the npm package", () => {
+test("ships the plugin, store, and parser in the npm package", () => {
   const result = spawnSync("npm", ["pack", "--dry-run", "--json"], {
     cwd: directory,
     encoding: "utf8",
@@ -38,6 +38,7 @@ test("ships the plugin and parser in the npm package", () => {
   assert.equal(result.status, 0, result.stderr || result.error?.message);
   const files = JSON.parse(result.stdout)[0].files.map(({ path }) => path);
   assert.ok(files.includes("src/tui.tsx"));
+  assert.ok(files.includes("src/store.mjs"));
   assert.ok(files.includes("src/status.mjs"));
   assert.ok(!files.some((path) => path.startsWith("test/")));
 });

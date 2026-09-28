@@ -62,6 +62,13 @@ test("rejects malformed pull request responses", () => {
   assert.throws(() => parsePullRequest({ ...base, statusCheckRollup: {} }), /statusCheckRollup/);
 });
 
+test("parses only the fields needed by the indicator and status policy", () => {
+  const { title, ...fields } = base;
+  const result = parsePullRequest(fields);
+  assert.equal(result.number, 123);
+  assert.equal("title" in result, false);
+});
+
 test("recognizes expected no-PR errors", () => {
   assert.equal(isNoPullRequestError("no pull requests found for branch main"), true);
   assert.equal(isNoPullRequestError("could not determine current branch: not on any branch"), true);

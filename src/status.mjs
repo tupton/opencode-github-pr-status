@@ -76,7 +76,6 @@ export function parsePullRequest(value) {
   const pullRequest = {
     number: value.number,
     url: requiredString(value.url, "url"),
-    title: requiredString(value.title, "title"),
     isDraft: Boolean(value.isDraft),
     state: optionalString(value.state).toUpperCase(),
     reviewDecision: optionalString(value.reviewDecision).toUpperCase(),
