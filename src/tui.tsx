@@ -5,42 +5,15 @@ import { createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { Plugin } from "@opencode/plugin/tui";
 import type { Context } from "@opencode/plugin/tui/context";
 
-import {
-  isNoPullRequestError,
-  parsePullRequest,
-} from "./status.mjs";
+import { parsePullRequest } from "./status.mjs";
+import { createPullRequestStore, pullRequestFromResult } from "./store.mjs";
 
-const REFRESH_INTERVAL_MS = 60_000;
 const COMMAND_TIMEOUT_MS = 15_000;
 const MAX_OUTPUT_BYTES = 1024 * 1024;
-const GH_FIELDS = [
-  "number",
-  "url",
-  "title",
-  "isDraft",
-  "state",
-  "reviewDecision",
-  "reviewRequests",
-  "statusCheckRollup",
-].join(",");
 
 type PullRequest = ReturnType<typeof parsePullRequest>;
-type PullRequestResult =
-  | { kind: "loading" }
-  | { kind: "none" }
-  | { kind: "pull-request"; pullRequest: PullRequest }
-  | { kind: "error"; message: string; pullRequest?: PullRequest };
-
-type Listener = (result: PullRequestResult) => void;
-type Channel = {
-  key?: string;
-  result: PullRequestResult;
-  checkedAt: number;
-  inFlight?: Promise<PullRequestResult>;
-  queued?: Promise<PullRequestResult>;
-  timer?: ReturnType<typeof setTimeout>;
-  listeners: Set<Listener>;
-};
+type PullRequestStore = ReturnType<typeof createPullRequestStore>;
+type PullRequestResult = ReturnType<PullRequestStore["get"]>;
 
 type CommandResult = {
   ok: boolean;
@@ -49,16 +22,6 @@ type CommandResult = {
   missing: boolean;
   timedOut: boolean;
 };
-
-function commandError(result: CommandResult, command: string) {
-  if (result.timedOut) return `${command} request timed out`;
-  const message = result.stderr.trim().split("\n")[0];
-  return message || `${command} request failed`;
-}
-
-function pullRequestFromResult(result: PullRequestResult) {
-  return result.kind === "pull-request" || result.kind === "error" ? result.pullRequest : undefined;
-}
 
 function runCommand(
   command: string,
@@ -103,190 +66,6 @@ function runCommand(
 function sessionDirectory(api: Context, sessionID: string) {
   return api.data.session.get(sessionID)?.location.directory;
 }
-
-function createPullRequestStore(api: Context, signal: AbortSignal) {
-  const channels = new Map<string, Channel>();
-  const cache = new Map<string, PullRequestResult>();
-  let ghMissing = false;
-
-  const channelFor = (directory: string) => {
-    let channel = channels.get(directory);
-    if (channel) return channel;
-    channel = {
-      result: { kind: "loading" },
-      checkedAt: 0,
-      listeners: new Set(),
-    };
-    channels.set(directory, channel);
-    return channel;
-  };
-
-  const publish = (channel: Channel, result: PullRequestResult) => {
-    channel.result = result;
-    for (const listener of channel.listeners) listener(result);
-  };
-
-  const failed = (channel: Channel, message: string): PullRequestResult => {
-    const cached = channel.key ? cache.get(channel.key) : undefined;
-    return {
-      kind: "error",
-      message,
-      pullRequest: pullRequestFromResult(channel.result) ?? (cached && pullRequestFromResult(cached)),
-    };
-  };
-
-  const load = async (directory: string, channel: Channel): Promise<PullRequestResult> => {
-    const branchResult = await runCommand("git", ["branch", "--show-current"], directory, signal);
-    if (signal.aborted) return channel.result;
-    if (!branchResult.ok) return { kind: "error", message: commandError(branchResult, "Git") };
-    const branch = branchResult.stdout.trim();
-    if (!branch) {
-      channel.key = undefined;
-      return { kind: "none" };
-    }
-
-    const key = `${directory}\0${branch}`;
-    if (channel.key !== key) {
-      channel.key = key;
-      publish(channel, cache.get(key) ?? { kind: "loading" });
-    }
-
-    if (ghMissing) {
-      return failed(channel, "GitHub CLI is not installed");
-    }
-
-    const result = await runCommand(
-      "gh",
-      ["pr", "view", "--json", GH_FIELDS],
-      directory,
-      signal,
-    );
-    if (signal.aborted) return channel.result;
-    if (!result.ok) {
-      if (result.missing) {
-        ghMissing = true;
-        return failed(channel, "GitHub CLI is not installed");
-      }
-      if (isNoPullRequestError(result.stderr)) return { kind: "none" };
-      return failed(channel, commandError(result, "GitHub CLI"));
-    }
-
-    try {
-      return { kind: "pull-request", pullRequest: parsePullRequest(JSON.parse(result.stdout)) };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      return failed(channel, message);
-    }
-  };
-
-  const schedule = (directory: string, channel: Channel, delay = REFRESH_INTERVAL_MS) => {
-    if (channel.timer) clearTimeout(channel.timer);
-    if (channel.listeners.size === 0 || signal.aborted) {
-      channel.timer = undefined;
-      return;
-    }
-    channel.timer = setTimeout(() => {
-      channel.timer = undefined;
-      void refresh(directory, true);
-    }, delay);
-  };
-
-  const refresh = (directory: string, force = false) => {
-    const channel = channelFor(directory);
-    if (channel.inFlight) {
-      if (!force) return channel.inFlight;
-      if (!channel.queued) {
-        const inFlight = channel.inFlight;
-        let queued: Promise<PullRequestResult>;
-        queued = inFlight
-          .finally(() => {
-            if (channel.queued === queued) channel.queued = undefined;
-          })
-          .then(() => refresh(directory, true));
-        channel.queued = queued;
-      }
-      return channel.queued;
-    }
-
-    const elapsed = Date.now() - channel.checkedAt;
-    if (!force && elapsed < REFRESH_INTERVAL_MS) {
-      schedule(directory, channel, REFRESH_INTERVAL_MS - elapsed);
-      return Promise.resolve(channel.result);
-    }
-
-    if (channel.timer) {
-      clearTimeout(channel.timer);
-      channel.timer = undefined;
-    }
-    channel.checkedAt = Date.now();
-    channel.inFlight = load(directory, channel)
-      .then((result) => {
-        if (signal.aborted) return result;
-        if (channel.key) cache.set(channel.key, result);
-        if (channel.queued) return result;
-        publish(channel, result);
-        return result;
-      })
-      .finally(() => {
-        channel.inFlight = undefined;
-        schedule(directory, channel);
-      });
-    return channel.inFlight;
-  };
-
-  const subscribe = (directory: string, listener: Listener) => {
-    const channel = channelFor(directory);
-    const activating = channel.listeners.size === 0;
-    channel.listeners.add(listener);
-    const unsubscribe = () => {
-      channel.listeners.delete(listener);
-      if (channel.listeners.size === 0 && channel.timer) {
-        clearTimeout(channel.timer);
-        channel.timer = undefined;
-      }
-    };
-    if (activating) {
-      publish(channel, { kind: "loading" });
-      void refresh(directory, true);
-      return unsubscribe;
-    }
-    listener(channel.result);
-    void refresh(directory);
-    return unsubscribe;
-  };
-
-  const get = (directory: string) => channelFor(directory).result;
-
-  const refreshAll = () => {
-    for (const [directory, channel] of channels) {
-      if (channel.listeners.size === 0) continue;
-      publish(channel, { kind: "loading" });
-      void refresh(directory, true);
-    }
-  };
-
-  const open = async (directory: string, pullRequest: PullRequest) => {
-    const result = await runCommand(
-      "gh",
-      ["pr", "view", pullRequest.url, "--web"],
-      directory,
-      signal,
-    );
-    if (!result.ok && !signal.aborted) {
-      api.ui.toast.show({ variant: "error", title: "GitHub PR", message: commandError(result, "GitHub CLI") });
-    }
-  };
-
-  const dispose = () => {
-    for (const channel of channels.values()) {
-      if (channel.timer) clearTimeout(channel.timer);
-    }
-  };
-
-  return { dispose, get, open, refresh, refreshAll, subscribe };
-}
-
-type PullRequestStore = ReturnType<typeof createPullRequestStore>;
 
 function usePullRequest(api: Context, store: PullRequestStore, sessionID?: string) {
   const [result, setResult] = createSignal<PullRequestResult>({ kind: "loading" });
@@ -425,7 +204,7 @@ export default Plugin.define({
   id: "github-pr-status",
   setup(api) {
     const controller = new AbortController();
-    const store = createPullRequestStore(api, controller.signal);
+    const store = createPullRequestStore(api, controller.signal, runCommand);
     const stopCommands = api.ui.slot({
       append: "app",
       render: () => {
