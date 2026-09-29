@@ -38,5 +38,5 @@ jobs:
           else
             echo 'published=false' >> "$GITHUB_OUTPUT"
           fi
-      - run: npm publish --access public
+      - run: npm stage publish
         if: steps.registry.outputs.published == 'false'
