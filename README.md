@@ -19,7 +19,9 @@ opencode plugin add opencode-github-pr-status@0.1.1
 
 Open an OpenCode session on a branch with a GitHub pull request. The prompt footer shows `PR #123`, colored by review and check status. Click the number to open the pull request in your browser.
 
-The command palette also has **GitHub PR: Open** and **GitHub PR: Refresh**. The status refreshes every minute and after a session completes or the branch changes. On a branch without a pull request, the indicator is empty. Refresh errors appear as a toast.
+The plugin also adds two commands: **GitHub PR: Open** and **GitHub PR: Refresh**.
+
+The status automatically refreshes every minute and after a session completes or the branch changes. On a branch without a pull request, the indicator is empty. Refresh errors appear as a toast.
 
 ## Develop
 
