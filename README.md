@@ -7,7 +7,7 @@ Show the current branch's GitHub pull request in the OpenCode terminal prompt.
 You need OpenCode V2 2.0.18 or later, `git`, and the [GitHub CLI](https://cli.github.com/). Sign in to GitHub with `gh auth login` before opening a session in a repository with a pull request.
 
 ```sh
-opencode plugin add opencode-github-pr-status@0.1.0
+opencode plugin add opencode-github-pr-status@0.1.1
 ```
 
 OpenCode installs this terminal-only plugin in your global `cli.json`. It does not run on the server and works when the terminal connects to a remote OpenCode server.
