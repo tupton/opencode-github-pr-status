@@ -4,9 +4,9 @@ import { createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { Plugin } from "@opencode/plugin/tui";
 import type { Context } from "@opencode/plugin/tui/context";
 
-import { runCommand } from "./command.ts";
-import { createPullRequestStatus } from "./status.ts";
-import type { ActionOutcome, Indicator, IndicatorResult } from "./status.ts";
+import { runCommand } from "./command";
+import { createPullRequestStatus } from "./status";
+import type { ActionOutcome, Indicator, IndicatorResult } from "./status";
 
 type PullRequestStatus = ReturnType<typeof createPullRequestStatus>;
 

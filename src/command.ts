@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 
-import type { RunCommand } from "./status.ts";
+import type { RunCommand } from "./status";
 
 const COMMAND_TIMEOUT_MS = 15_000;
 const MAX_OUTPUT_BYTES = 1024 * 1024;
