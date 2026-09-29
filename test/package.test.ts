@@ -31,7 +31,7 @@ test("exports only a terminal plugin", () => {
   assert.equal(result.status, 0, result.stderr || result.error?.message);
 });
 
-test("ships compiled plugin code instead of source TSX", () => {
+test("ships compiled plugin code instead of source files", () => {
   const result = spawnSync("npm", ["pack", "--dry-run", "--json"], {
     cwd: directory,
     encoding: "utf8",
@@ -39,9 +39,8 @@ test("ships compiled plugin code instead of source TSX", () => {
   assert.equal(result.status, 0, result.stderr || result.error?.message);
   const files: { path: string }[] = JSON.parse(result.stdout)[0].files;
   const paths = files.map(({ path }) => path);
-  assert.ok(paths.includes("src/tui.tsx"));
-  assert.ok(paths.includes("src/command.ts"));
-  assert.ok(paths.includes("src/status.ts"));
+  assert.ok(paths.includes("dist/tui.js"));
+  assert.ok(!paths.some((path) => path.startsWith("src/")));
   assert.ok(!paths.some((path) => path.startsWith("test/")));
 });
 
