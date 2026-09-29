@@ -1,6 +1,6 @@
 {
   "name": "opencode-github-pr-status",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "packageManager": "pnpm@10.34.5",
   "description": "GitHub pull request status in the OpenCode terminal",
   "license": "MIT",
