@@ -11,7 +11,7 @@ const GH_FIELDS = [
 ].join(",");
 
 const PASSED_CHECK_STATES = new Set(["SUCCESS", "SKIPPED", "NEUTRAL"]);
-const PENDING_CHECK_STATES = new Set(["EXPECTED", "PENDING", "QUEUED", "IN_PROGRESS", "WAITING", "REQUESTED"]);
+const PENDING_CHECK_STATES = new Set(["EXPECTED", "PENDING", "QUEUED", "IN_PROGRESS", "WAITING", "REQUESTED", "STALE"]);
 const FAILED_CHECK_STATES = new Set(["ACTION_REQUIRED", "CANCELLED", "ERROR", "FAILURE", "STARTUP_FAILURE", "TIMED_OUT"]);
 
 type PullRequest = {
@@ -67,7 +67,7 @@ function checkState(check: unknown): "passed" | "pending" | "failed" | "unknown"
   const status = optionalString(value.status).toUpperCase();
 
   if (PASSED_CHECK_STATES.has(conclusion) || PASSED_CHECK_STATES.has(state)) return "passed";
-  if (PENDING_CHECK_STATES.has(state) || PENDING_CHECK_STATES.has(status)) return "pending";
+  if (PENDING_CHECK_STATES.has(conclusion) || PENDING_CHECK_STATES.has(state) || PENDING_CHECK_STATES.has(status)) return "pending";
   if (FAILED_CHECK_STATES.has(conclusion) || FAILED_CHECK_STATES.has(state) || FAILED_CHECK_STATES.has(status)) return "failed";
   return "unknown";
 }
