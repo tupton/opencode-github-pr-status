@@ -37,10 +37,12 @@ test("ships compiled plugin code instead of source TSX", () => {
     encoding: "utf8",
   });
   assert.equal(result.status, 0, result.stderr || result.error?.message);
-  const files = JSON.parse(result.stdout)[0].files.map(({ path }) => path);
-  assert.ok(files.includes("dist/tui.js"));
-  assert.ok(!files.some((path) => path.startsWith("src/")));
-  assert.ok(!files.some((path) => path.startsWith("test/")));
+  const files: { path: string }[] = JSON.parse(result.stdout)[0].files;
+  const paths = files.map(({ path }) => path);
+  assert.ok(paths.includes("src/tui.tsx"));
+  assert.ok(paths.includes("src/command.ts"));
+  assert.ok(paths.includes("src/status.ts"));
+  assert.ok(!paths.some((path) => path.startsWith("test/")));
 });
 
 test("renders the built TUI from an isolated node_modules directory", () => {
