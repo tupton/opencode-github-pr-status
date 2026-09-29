@@ -5,7 +5,7 @@ Show the current branch's GitHub pull request in the OpenCode terminal prompt.
 ## Install
 
 ```sh
-opencode plugin add opencode-github-pr-status@0.1.1
+opencode plugin add opencode-github-pr-status@0.3.1
 ```
 
 
