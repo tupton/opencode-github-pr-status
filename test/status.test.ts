@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createPullRequestStatus } from "../src/status.ts";
-import type { CommandResult, Indicator, IndicatorResult, RunCommand } from "../src/status.ts";
+import { createPullRequestStatus } from "../src/status";
+import type { CommandResult, Indicator, IndicatorResult, RunCommand } from "../src/status";
 
 const directory = "/project";
 const pr = (number: number, fields: Record<string, unknown> = {}) => JSON.stringify({
