@@ -10,11 +10,13 @@
     "url": "git+https://github.com/tupton/opencode-github-pr-status.git"
   },
   "exports": {
-    "./tui": "./src/tui.tsx"
+    "./tui": "./dist/tui.js"
   },
-  "files": ["src", "README.md", "LICENSE"],
+  "files": ["dist", "README.md", "LICENSE"],
   "scripts": {
-    "test": "node --test test/*.test.mjs",
+    "build": "bun scripts/build.mjs",
+    "prepack": "bun scripts/build.mjs",
+    "test": "bun scripts/build.mjs && node --test test/*.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
