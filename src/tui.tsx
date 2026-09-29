@@ -40,7 +40,9 @@ function statusColor(theme: Context["theme"], tone: Indicator["tone"]) {
     case "warning":
       return theme.text.feedback.warning.base;
     case "muted":
-      return theme.text.muted;
+      return theme.hue.neutral[700];
+    case "neutral":
+      return theme.hue.neutral[300];
     case "accent":
       return theme.hue.accent[300];
     default:

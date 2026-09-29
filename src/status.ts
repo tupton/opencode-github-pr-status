@@ -4,6 +4,7 @@ const GH_FIELDS = [
   "url",
   "isDraft",
   "state",
+  "mergeable",
   "reviewDecision",
   "reviewRequests",
   "statusCheckRollup",
@@ -11,14 +12,15 @@ const GH_FIELDS = [
 
 const PASSED_CHECK_STATES = new Set(["SUCCESS", "SKIPPED", "NEUTRAL"]);
 const PENDING_CHECK_STATES = new Set(["EXPECTED", "PENDING", "QUEUED", "IN_PROGRESS", "WAITING", "REQUESTED"]);
+const FAILED_CHECK_STATES = new Set(["ACTION_REQUIRED", "CANCELLED", "ERROR", "FAILURE", "STARTUP_FAILURE", "TIMED_OUT"]);
 
 type PullRequest = {
   number: number;
   url: string;
   status: "merged" | "closed" | "draft" | "checks-failing" | "checks-pending" |
-    "changes-requested" | "approved" | "awaiting-review" | "ready";
+    "changes-requested" | "merge-conflicts" | "approved" | "awaiting-review" | "ready";
 };
-export type Indicator = { text: string; tone: "success" | "error" | "warning" | "muted" | "accent" | "default" };
+export type Indicator = { text: string; tone: "success" | "error" | "warning" | "muted" | "neutral" | "accent" };
 export type IndicatorResult =
   | { kind: "loading" }
   | { kind: "none" }
@@ -57,8 +59,8 @@ function optionalString(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
-function checkState(check: unknown): "passed" | "pending" | "failed" {
-  if (!check || typeof check !== "object" || Array.isArray(check)) return "failed";
+function checkState(check: unknown): "passed" | "pending" | "failed" | "unknown" {
+  if (!check || typeof check !== "object" || Array.isArray(check)) return "unknown";
   const value = check as Record<string, unknown>;
   const conclusion = optionalString(value.conclusion).toUpperCase();
   const state = optionalString(value.state).toUpperCase();
@@ -66,7 +68,8 @@ function checkState(check: unknown): "passed" | "pending" | "failed" {
 
   if (PASSED_CHECK_STATES.has(conclusion) || PASSED_CHECK_STATES.has(state)) return "passed";
   if (PENDING_CHECK_STATES.has(state) || PENDING_CHECK_STATES.has(status)) return "pending";
-  return "failed";
+  if (FAILED_CHECK_STATES.has(conclusion) || FAILED_CHECK_STATES.has(state) || FAILED_CHECK_STATES.has(status)) return "failed";
+  return "unknown";
 }
 
 function parsePullRequest(input: unknown): PullRequest {
@@ -84,19 +87,22 @@ function parsePullRequest(input: unknown): PullRequest {
     throw new Error("GitHub PR response has invalid reviewRequests");
   }
 
-  const checks = { passed: 0, pending: 0, failed: 0 };
+  const checks = { passed: 0, pending: 0, failed: 0, unknown: 0 };
   for (const check of value.statusCheckRollup) checks[checkState(check)] += 1;
   const state = optionalString(value.state).toUpperCase();
+  const mergeable = optionalString(value.mergeable).toUpperCase();
   const reviewDecision = optionalString(value.reviewDecision).toUpperCase();
   const status: PullRequest["status"] =
     state === "MERGED" ? "merged" :
     state === "CLOSED" ? "closed" :
-    Boolean(value.isDraft) ? "draft" :
     checks.failed > 0 ? "checks-failing" :
-    checks.pending > 0 ? "checks-pending" :
     reviewDecision === "CHANGES_REQUESTED" ? "changes-requested" :
+    mergeable === "CONFLICTING" ? "merge-conflicts" :
+    Boolean(value.isDraft) ? "draft" :
+    checks.pending > 0 ? "checks-pending" :
+    reviewDecision === "REVIEW_REQUIRED" || (reviewDecision !== "APPROVED" && ((value.reviewRequests as unknown[] | undefined)?.length ?? 0) > 0) ? "awaiting-review" :
+    checks.unknown > 0 ? "ready" :
     reviewDecision === "APPROVED" ? "approved" :
-    reviewDecision === "REVIEW_REQUIRED" || ((value.reviewRequests as unknown[] | undefined)?.length ?? 0) > 0 ? "awaiting-review" :
     "ready";
 
   return { number: value.number as number, url: requiredString(value.url, "url"), status };
@@ -104,11 +110,12 @@ function parsePullRequest(input: unknown): PullRequest {
 
 function indicator(pullRequest: PullRequest): Indicator {
   const tone: Indicator["tone"] =
-    pullRequest.status === "merged" || pullRequest.status === "approved" ? "success" :
-    pullRequest.status === "checks-failing" || pullRequest.status === "changes-requested" ? "error" :
-    pullRequest.status === "checks-pending" ? "warning" :
+    pullRequest.status === "merged" ? "accent" :
+    pullRequest.status === "approved" ? "success" :
+    pullRequest.status === "checks-failing" || pullRequest.status === "changes-requested" || pullRequest.status === "merge-conflicts" ? "error" :
+    pullRequest.status === "checks-pending" || pullRequest.status === "awaiting-review" ? "warning" :
     pullRequest.status === "closed" || pullRequest.status === "draft" ? "muted" :
-    pullRequest.status === "awaiting-review" ? "accent" : "default";
+    "neutral";
   return { text: `PR #${pullRequest.number}`, tone };
 }
 
@@ -119,7 +126,12 @@ function currentPullRequest(result: Result): PullRequest | undefined {
 function indicatorResult(result: Result): IndicatorResult {
   if (result.kind === "pull-request") return { kind: "pull-request", indicator: indicator(result.pullRequest) };
   if (result.kind === "error") {
-    return { kind: "error", message: result.message, indicator: result.pullRequest && indicator(result.pullRequest) };
+    const lastKnown = result.pullRequest && indicator(result.pullRequest);
+    return {
+      kind: "error",
+      message: result.message,
+      indicator: lastKnown && { ...lastKnown, tone: "neutral" },
+    };
   }
   return result;
 }
