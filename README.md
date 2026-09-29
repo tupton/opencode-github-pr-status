@@ -20,6 +20,6 @@ The command palette also has **GitHub PR: Open** and **GitHub PR: Refresh**. The
 
 ## Develop
 
-Install Node.js 22.14.0 or later, pnpm 10.34.5, and Bun. Run `pnpm install --frozen-lockfile`, `pnpm test`, and `pnpm typecheck`. The package test imports the TUI entrypoint and uses `npm pack --dry-run` to check which files npm would publish. You do not need GitHub credentials to run the tests.
+Use the Node.js version in `.nvmrc` (currently 26), pnpm 10.34.5, and Bun. Run `pnpm install --frozen-lockfile`, `pnpm test`, and `pnpm typecheck`. The package test imports the TUI entrypoint and uses `npm pack --dry-run` to check which files npm would publish. You do not need GitHub credentials to run the tests. The package's `engines` field specifies the minimum supported Node.js version, which may be lower than the development and CI version.
 
 See [RELEASING.md](RELEASING.md) to publish a version.
