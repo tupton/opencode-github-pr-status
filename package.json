@@ -16,7 +16,7 @@
   "scripts": {
     "build": "bun scripts/build.mjs",
     "prepack": "bun scripts/build.mjs",
-    "test": "bun scripts/build.mjs && node --test test/*.test.mjs",
+    "test": "bun scripts/build.mjs && bun test test/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
