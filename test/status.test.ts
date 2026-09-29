@@ -10,6 +10,7 @@ const pr = (number: number, fields: Record<string, unknown> = {}) => JSON.string
   url: `https://github.com/example/project/pull/${number}`,
   isDraft: false,
   state: "OPEN",
+  mergeable: "MERGEABLE",
   reviewDecision: "",
   reviewRequests: [],
   statusCheckRollup: [],
@@ -31,18 +32,27 @@ function createFixture(responses: Array<CommandResult | Promise<CommandResult>>)
   return { status, calls, dispose: () => { controller.abort(); status.dispose(); } };
 }
 
-test("classifies GitHub checks and review status into indicator text and tone", async () => {
+test("classifies PR lifecycle, blockers, checks, and review status into tones", async () => {
   const cases: [Record<string, unknown>, Indicator["tone"]][] = [
-    [{ state: "MERGED", isDraft: true }, "success"],
-    [{ state: "CLOSED", isDraft: true }, "muted"],
-    [{ isDraft: true, statusCheckRollup: [{ conclusion: "FAILURE" }] }, "muted"],
+    [{ state: "MERGED", isDraft: true, statusCheckRollup: [{ conclusion: "FAILURE" }] }, "accent"],
+    [{ state: "CLOSED", isDraft: true, statusCheckRollup: [{ conclusion: "FAILURE" }], mergeable: "CONFLICTING" }, "muted"],
+    [{ isDraft: true, statusCheckRollup: [{ conclusion: "FAILURE" }] }, "error"],
+    [{ isDraft: true, statusCheckRollup: [{ status: "IN_PROGRESS" }] }, "muted"],
+    [{ mergeable: "CONFLICTING" }, "error"],
+    [{ isDraft: true, mergeable: "CONFLICTING" }, "error"],
+    [{ reviewDecision: "CHANGES_REQUESTED", statusCheckRollup: [{ status: "IN_PROGRESS" }] }, "error"],
     [{ statusCheckRollup: [{ conclusion: "SUCCESS" }, { conclusion: "SKIPPED" }, { conclusion: "NEUTRAL" }, { status: "IN_PROGRESS" }, { conclusion: "FAILURE" }, { state: "ERROR" }] }, "error"],
+    [{ statusCheckRollup: [{}] }, "neutral"],
+    [{ statusCheckRollup: [null] }, "neutral"],
     [{ statusCheckRollup: [{ status: "IN_PROGRESS" }] }, "warning"],
     [{ reviewDecision: "CHANGES_REQUESTED" }, "error"],
     [{ reviewDecision: "APPROVED" }, "success"],
-    [{ reviewDecision: "REVIEW_REQUIRED" }, "accent"],
-    [{ reviewRequests: [{ login: "reviewer" }] }, "accent"],
-    [{}, "default"],
+    [{ reviewDecision: "APPROVED", reviewRequests: [{ login: "optional-reviewer" }] }, "success"],
+    [{ reviewDecision: "APPROVED", statusCheckRollup: [{ status: "IN_PROGRESS" }] }, "warning"],
+    [{ reviewDecision: "APPROVED", statusCheckRollup: [{}] }, "neutral"],
+    [{ reviewDecision: "REVIEW_REQUIRED" }, "warning"],
+    [{ reviewRequests: [{ login: "reviewer" }] }, "warning"],
+    [{}, "neutral"],
   ];
 
   for (const [fields, tone] of cases) {
@@ -86,12 +96,12 @@ test("branch changes replace the current indicator", async () => {
         if (result.kind === "pull-request") resolve();
       });
     });
-    assert.deepEqual(fixture.status.get(directory), { kind: "pull-request", indicator: { text: "PR #11", tone: "default" } });
+    assert.deepEqual(fixture.status.get(directory), { kind: "pull-request", indicator: { text: "PR #11", tone: "neutral" } });
 
     fixture.status.refreshAll();
     assert.deepEqual(fixture.status.get(directory), { kind: "loading" });
     await fixture.status.refresh(directory);
-    assert.deepEqual(fixture.status.get(directory), { kind: "pull-request", indicator: { text: "PR #22", tone: "default" } });
+    assert.deepEqual(fixture.status.get(directory), { kind: "pull-request", indicator: { text: "PR #22", tone: "neutral" } });
     assert.ok(observed.some((result) => result.kind === "loading"));
     unsubscribe();
   } finally {
@@ -106,7 +116,7 @@ test("a refresh succeeds after gh becomes available", async () => {
     assert.deepEqual(await fixture.status.refresh(directory), { kind: "refreshed", message: "Refreshed PR #11" });
     assert.equal(fixture.calls.filter(({ command }) => command === "gh").length, 2);
     assert.deepEqual(fixture.calls[3].args, [
-      "pr", "view", "--json", "number,url,isDraft,state,reviewDecision,reviewRequests,statusCheckRollup",
+      "pr", "view", "--json", "number,url,isDraft,state,mergeable,reviewDecision,reviewRequests,statusCheckRollup",
     ]);
   } finally {
     fixture.dispose();
@@ -129,7 +139,7 @@ test("no PR clears the old indicator and Open returns an informational outcome",
   }
 });
 
-test("a same-branch refresh error retains the last known PR for display and Open", async () => {
+test("a same-branch refresh error shows the last known PR in neutral and keeps it openable", async () => {
   const fixture = createFixture([
     ok("feature-a\n"), ok(pr(11)),
     ok("feature-a\n"), error("HTTP 401: Bad credentials"),
@@ -139,7 +149,7 @@ test("a same-branch refresh error retains the last known PR for display and Open
     await fixture.status.refresh(directory);
     assert.deepEqual(await fixture.status.refresh(directory), { kind: "error", message: "HTTP 401: Bad credentials" });
     assert.deepEqual(fixture.status.get(directory), {
-      kind: "error", message: "HTTP 401: Bad credentials", indicator: { text: "PR #11", tone: "default" },
+      kind: "error", message: "HTTP 401: Bad credentials", indicator: { text: "PR #11", tone: "neutral" },
     });
     // A known PR opens without another branch lookup.
     assert.deepEqual(await fixture.status.open(directory), { kind: "opened", message: "Opened PR #11" });
@@ -172,7 +182,7 @@ test("Open refreshes when no PR is known and returns errors instead of showing t
   ]);
   try {
     assert.deepEqual(await fixture.status.open(directory), { kind: "error", message: "browser failed" });
-    assert.deepEqual(fixture.status.get(directory), { kind: "pull-request", indicator: { text: "PR #11", tone: "default" } });
+    assert.deepEqual(fixture.status.get(directory), { kind: "pull-request", indicator: { text: "PR #11", tone: "neutral" } });
   } finally {
     fixture.dispose();
   }
@@ -207,7 +217,7 @@ test("overlapping forced refreshes publish only the newest branch result", async
     assert.deepEqual(await first, { kind: "refreshed", message: "Refreshed PR #22" });
     assert.deepEqual(await second, { kind: "refreshed", message: "Refreshed PR #22" });
     assert.deepEqual(await third, { kind: "refreshed", message: "Refreshed PR #22" });
-    assert.deepEqual(fixture.status.get(directory), { kind: "pull-request", indicator: { text: "PR #22", tone: "default" } });
+    assert.deepEqual(fixture.status.get(directory), { kind: "pull-request", indicator: { text: "PR #22", tone: "neutral" } });
     assert.ok(!observed.some((result) => result.kind === "pull-request" && result.indicator.text === "PR #11"));
     unsubscribe();
   } finally {
@@ -238,7 +248,7 @@ test("a branch update does not resurrect a cached PR from an older in-flight loo
     const afterBranchUpdate = observed.length;
     resolveBranch(ok("feature-a\n"));
     await earlier;
-    assert.deepEqual(fixture.status.get(directory), { kind: "pull-request", indicator: { text: "PR #22", tone: "default" } });
+    assert.deepEqual(fixture.status.get(directory), { kind: "pull-request", indicator: { text: "PR #22", tone: "neutral" } });
     assert.ok(!observed.slice(afterBranchUpdate).some((result) =>
       result.kind === "pull-request" && result.indicator.text === "PR #11"));
     unsubscribe();
