@@ -1,5 +1,7 @@
 # OpenCode GitHub PR status
 
+![Github PR status in the OpenCode prompt palette](./docs/screenshot.png)
+
 Show the current branch's GitHub pull request in the OpenCode terminal prompt.
 
 ## Install
